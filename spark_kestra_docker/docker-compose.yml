@@ -1,0 +1,82 @@
+volumes:
+  kestra-data:
+    driver: local
+  kestra-plugins: 
+    driver: local
+
+services:
+  kestra:
+    image: kestra/kestra:latest
+    pull_policy: always
+    user: "root"
+    command: server standalone
+    volumes:
+      - kestra-data:/app/storage
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/kestra-wd:/tmp/kestra-wd
+      - /home/olalekan/DE-project-1/keys/credk.json:/tmp/gcs-credentials.json  # Mount the credentials
+      - ~/.kestra/custom-plugins:/app/custom-plugins
+    environment:
+      KESTRA_CONFIGURATION: |
+        kestra:
+          server:
+            basicAuth:
+              enabled: false
+              username: "admin@kestra.io" 
+              password: kestra
+          repository:
+            type: memory
+          storage:
+            type: local
+            local:
+              basePath: "/app/storage"
+          queue:
+            type: memory
+          tasks:
+            tmpDir:
+              path: /tmp/kestra-wd/tmp
+          url: http://localhost:8080/
+        GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcs-credentials.json  # Use the GCS credentials file
+        SPARK_HOME: /opt/spark
+        HOME: /app
+      PLUGINS_ADDITIONAL_PATH: "/app/custom-plugins"
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    networks:
+      - etl_network
+
+  spark-master:
+    image: bitnami/spark:latest
+    container_name: spark-master1
+    hostname: spark-master
+    environment:
+      - SPARK_MODE=master
+      - GOOGLE_APPLICATION_CREDENTIALS=/tmp/keys/gcp-creds.json
+    volumes:
+      - ./jars:/opt/spark/jars
+      - /home/olalekan/DE-project-1/keys/credk.json:/tmp/keys/gcp-creds.json
+    ports:
+      - "7077:7077"
+      - "8082:8080"
+    networks:
+      - etl_network
+
+  spark-worker:
+    image: bitnami/spark:latest
+    container_name: spark-worker1
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - GOOGLE_APPLICATION_CREDENTIALS=/tmp/keys/gcp-creds.json
+    volumes:
+      - ./jars:/opt/spark/jars
+      - /home/olalekan/DE-project-1/keys/credk.json:/tmp/keys/gcp-creds.json
+    networks:
+      - etl_network
+
+networks:
+  etl_network:
+    driver: bridge

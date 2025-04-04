@@ -1,0 +1,342 @@
+id: data_ingest
+namespace: project_fashion
+
+inputs:
+  - id: fashion
+    type: SELECT
+    displayName: Select file type
+    values: [customers, products, stores, employees, transactions]
+    defaults: customers
+
+variables:
+  file: "{{inputs.fashion}}.csv"
+  gcs_file: "gs://{{kv('GCP_BUCKET_NAME')}}/dataset/final/{{vars.file}}"
+  table: "{{kv('GCP_DATASET')}}.{{inputs.fashion}}"
+  #data: "{{outputs.extract.outputFiles[inputs.fashion ~ '.csv']}}"
+
+tasks:
+  - id: set_label
+    type: io.kestra.plugin.core.execution.Labels
+    labels:
+      file: "{{render(vars.file)}}"
+      fashion: "{{inputs.fashion}}"
+
+  - id: data_ingest
+    type: io.kestra.plugin.gcp.gcs.Download
+    from: "gs://olalekan-de2753/dataset/raw/{{inputs.fashion}}.csv"
+
+  - id: if_customers
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{inputs.fashion == 'customers'}}"
+    then: 
+      - id: customers_transform_script
+        type: io.kestra.plugin.scripts.python.Script
+        outputFiles:
+          - customers_tf_data.csv
+        taskRunner:
+          type: io.kestra.plugin.core.runner.Process
+        script: |
+          import subprocess
+          import sys
+
+          # Ensure Pandas is installed
+          try:
+              import pandas as pd
+          except ModuleNotFoundError:
+            subprocess.run([sys.executable, "-m", "pip", "install", "--no-cache-dir", "pandas"], check=True)
+            import pandas as pd
+          
+          df_customers = pd.read_csv("{{ outputs.data_ingest.uri }}")
+          
+          # Rename the column "Date of Birth" to "DOB"
+          df_customers = df_customers.rename(columns={df_customers.columns[7]: 'DOB'})
+
+          # Convert the DOB datatype to Datetime, Customer ID to string
+          df_customers['DOB'] = pd.to_datetime(df_customers['DOB'])
+          df_customers['Customer ID'] = df_customers['Customer ID'].astype(str)
+
+          # Rename the IDs column to remove whitespaces
+          df_customers = df_customers.rename(columns={df_customers.columns[0]: 'CustomerID'})
+
+          # Drop unwanted columns from the customer table
+          df_customers = df_customers.drop(columns=['Email', 'Telephone', 'Job Title'])
+
+          # Renaming to China, Germany and Spain
+          df_customers['Country'] = df_customers['Country'].replace({'中国': 'China', 'Deutschland': 'Germany', 'España': 'Spain'})
+
+          # Renaming all China cities written in chinese letters
+          df_customers['City'] = df_customers['City'].replace({'上海':'Shangai', '浦东':'Pudong', '虹口':'Hongkou',
+               '宝山':'Baoshan', '闵行':'Minhang', '嘉定':'Jiading', '苏州（江苏省）':'Suzhou', '昆山':'Kunshan', '南通':'Nantong',
+                '嘉兴':'Jiaxing', '杭州':'Hangzhou', '北京':'Beijing', '海淀':'Haidian', '朝阳':'Zhāo yáng', '丰台':'Fengtai', '通州':'Tongzhou',
+                  '石家庄': 'Shijiazhuang', '天津': 'Tianjin', '廊坊': 'Langfang', '保定': 'Baoding', '承德': 'Chengde', '张家口': 'Zhangjiakou', '广州': 'Guangzhou', '天河': 'Tianhe', '白云': 'Baiyun', '越秀': 'Yuexiu', '佛山': 'Foshan', '东莞': 'Dongguan', '深圳': 'Shenzhen',
+              '中山': 'Zhongshan', '珠海': 'Zhuhai', '惠州': 'Huizhou', '清远': 'Qingyuan', '福田': 'Futian', '南山': 'Nanshan', '宝安': 'Baoan', '龙岗': 'Longgang', '香港': 'Hong Kong', '澳门': 'Macau', '重庆': 'Chongqing', '渝中': 'Yuzhong', '江北': 'Jiangbei', '沙坪坝': 'Shapingba', '渝北': 'Yubei', '涪陵': 'Fuling', '万州': 'Wanzhou', '黔江': 'Qianjiang', '大足': 'Dazu', '璧山': 'Bishan', '合川': 'Hechuan', '成都': 'Chengdu', '锦江': 'Jinjiang', '青羊': 'Qingyang', '武侯': 'Wuhou',
+              '龙泉驿': 'Longquanyi', '双流': 'Shuangliu', '德阳': 'Deyang', '绵阳': 'Mianyang', '乐山': 'Leshan', '眉山': 'Meishan',
+              '资阳': 'Ziyang', '和平': 'Heping', '河东': 'Hedong', '河西': 'Hexi', '南开': 'Nankai', '滨海': 'Binhai', '唐山': 'Tangshan', '沧州': 'Cangzhou', '秦皇岛': 'Qinhuangdao', '西安': 'Xi’an', '碑林': 'Beilin', '莲湖': 'Lianhu', '新城': 'Xincheng', '雁塔': 'Yanta', '长安': 'Chang’an', '咸阳': 'Xianyang', '渭南': 'Weinan', '宝鸡': 'Baoji', '铜川': 'Tongchuan', '汉中': 'Hanzhong', '武汉': 'Wuhan', '江岸': 'Jiangan', '江汉': 'Jianghan', '硚口': 'Qiaokou', '汉阳': 'Hanyang', '武昌': 'Wuchang', '黄陂': 'Huangpi', '新洲': 'Xinzhou', '鄂州': 'Ezhou', '黄冈': 'Huanggang', '咸宁': 'Xianning', '苏州': 'Suzhou', '姑苏': 'Gusu', '虎丘': 'Huqiu', '吴中': 'Wuzhong', '相城': 'Xiangcheng', '常熟': 'Changshu', '张家港': 'Zhangjiagang', '太仓': 'Taicang', '无锡': 'Wuxi'})
+
+           # Save the transformed data
+          df_customers.to_csv('customers_tf_data.csv', index=False)
+
+
+
+      - id: load_to_bigQuery
+        type: io.kestra.plugin.gcp.bigquery.Load
+        from: "{{ outputs.customers_transform_script.outputFiles['customers_tf_data.csv'] }}"
+        destinationTable: "{{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}"
+        format: CSV
+        csvOptions:
+          fieldDelimiter: ","
+        autodetect: true
+
+
+  - id: if_products
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{inputs.fashion == 'products'}}"
+    then: 
+      - id: products_transform_script
+        type: io.kestra.plugin.scripts.python.Script
+        outputFiles:
+          - products_tf_data.csv
+        taskRunner:
+          type: io.kestra.plugin.core.runner.Process
+        script: |
+          import subprocess
+          import sys
+
+          # Ensure Pandas is installed
+          try:
+              import pandas as pd
+          except ModuleNotFoundError:
+            subprocess.run([sys.executable, "-m", "pip", "install", "--no-cache-dir", "pandas"], check=True)
+            import pandas as pd
+          
+          df_products = pd.read_csv("{{ outputs.data_ingest.uri }}")
+          
+          # Remove unwanted columns
+          df_products = df_products.drop\
+              (columns=['Sub Category', 'Description PT', 'Description DE', 'Description FR', 'Description ES', 'Description ZH', 'Color'])
+
+          # Change product id datatype to string
+          df_products['Product ID'] = df_products['Product ID'].astype(str)
+
+          # Rename the IDs column to remove whitespaces
+          df_products = df_products.rename(columns={df_products.columns[0]: 'ProductID'})
+
+          # drop empty rows.
+          df_products.dropna(subset=['Sizes'], inplace=True)
+
+           # Save the transformed data
+          df_products.to_csv('products_tf_data.csv', index=False)
+
+
+
+      - id: products_to_bigQuery
+        type: io.kestra.plugin.gcp.bigquery.Load
+        from: "{{ outputs.products_transform_script.outputFiles['products_tf_data.csv'] }}"
+        destinationTable: "{{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}"
+        format: CSV
+        csvOptions:
+          fieldDelimiter: ","
+        autodetect: true
+
+  - id: if_employees
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{inputs.fashion == 'employees'}}"
+    then: 
+      - id: employees_transform_script
+        type: io.kestra.plugin.scripts.python.Script
+        outputFiles:
+          - employees_tf_data.csv
+        taskRunner:
+          type: io.kestra.plugin.core.runner.Process
+        script: |
+          import subprocess
+          import sys
+
+          # Ensure Pandas is installed
+          try:
+              import pandas as pd
+          except ModuleNotFoundError:
+            subprocess.run([sys.executable, "-m", "pip", "install", "--no-cache-dir", "pandas"], check=True)
+            import pandas as pd
+          
+          df_employees = pd.read_csv("{{ outputs.data_ingest.uri }}")
+          
+          # Changed employee and store IDs datatype to string
+          df_employees['Employee ID'] = df_employees['Employee ID'].astype(str)
+          df_employees['Store ID'] = df_employees['Store ID'].astype(str)
+
+          # Rename the IDs column to remove whitespaces
+          df_employees = df_employees.rename(columns={df_employees.columns[0]: 'EmployeeID'})
+          df_employees = df_employees.rename(columns={df_employees.columns[1]: 'StoreID'})
+
+           # Save the transformed data
+          df_employees.to_csv('employees_tf_data.csv', index=False)
+
+
+
+      - id: employees_to_bigQuery
+        type: io.kestra.plugin.gcp.bigquery.Load
+        from: "{{ outputs.employees_transform_script.outputFiles['employees_tf_data.csv'] }}"
+        destinationTable: "{{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}"
+        format: CSV
+        csvOptions:
+          fieldDelimiter: ","
+        autodetect: true
+
+
+  - id: if_stores
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{inputs.fashion == 'stores'}}"
+    then: 
+      - id: stores_transform_script
+        type: io.kestra.plugin.scripts.python.Script
+        outputFiles:
+          - stores_tf_data.csv
+        taskRunner:
+          type: io.kestra.plugin.core.runner.Process
+        script: |
+          import subprocess
+          import sys
+
+          # Ensure Pandas is installed
+          try:
+              import pandas as pd
+          except ModuleNotFoundError:
+            subprocess.run([sys.executable, "-m", "pip", "install", "--no-cache-dir", "pandas"], check=True)
+            import pandas as pd
+          
+          df_stores = pd.read_csv("{{ outputs.data_ingest.uri }}")
+          
+          # change store ID datatype to string
+          df_stores['Store ID'] = df_stores['Store ID'].astype(str)
+
+          # Rename the IDs column to remove whitespaces
+          df_stores = df_stores.rename(columns={df_stores.columns[0]: 'StoreID'})
+
+          # Drop unwanted columns
+          df_stores = df_stores.drop(columns=['Store Name', 'ZIP Code', 'Latitude', 'Longitude'])
+
+          # Renaming to China, Germany and Spain
+          df_stores['Country'] = df_stores['Country'].replace({'中国':'China', 'Deutschland':'Germany', 'España':'Spain'})
+
+          # Renaming Chinese to English word
+          df_stores['City'] = df_stores['City'].replace({'北京':'Beijing', '上海':'Shangai', '广州':'Guangzhou', '深圳':'Shenzhen', '重庆':'Chongqing'})
+
+           # Save the transformed data
+          df_stores.to_csv('stores_tf_data.csv', index=False)
+
+
+
+      - id: stores_to_bigQuery
+        type: io.kestra.plugin.gcp.bigquery.Load
+        from: "{{ outputs.stores_transform_script.outputFiles['stores_tf_data.csv'] }}"
+        destinationTable: "{{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}"
+        format: CSV
+        csvOptions:
+          fieldDelimiter: ","
+        autodetect: true
+
+  - id: if_transactions
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{inputs.fashion == 'transactions'}}"
+    then: 
+      - id: transactions_transform_script
+        type: io.kestra.plugin.scripts.python.Script
+        outputFiles:
+          - transactions_tf_data.csv
+        taskRunner:
+          type: io.kestra.plugin.core.runner.Process
+        script: |
+          import subprocess
+          import sys
+
+          # Ensure Pandas is installed
+          try:
+              import pandas as pd
+          except ModuleNotFoundError:
+            subprocess.run([sys.executable, "-m", "pip", "install", "--no-cache-dir", "pandas"], check=True)
+            import pandas as pd
+          
+          df_transactions = pd.read_csv("{{ outputs.data_ingest.uri }}")
+          
+          # Change ID's datatype to string
+          df_transactions['Customer ID'] = df_transactions['Customer ID'].astype(str)
+          df_transactions['Store ID'] = df_transactions['Store ID'].astype(str)
+          df_transactions['Product ID'] = df_transactions['Product ID'].astype(str)
+          df_transactions['Employee ID'] = df_transactions['Employee ID'].astype(str)
+
+          # Convert the DOB datatype to Datetime, Customer ID to string
+          df_transactions['Date'] = pd.to_datetime(df_transactions['Date'])
+
+          # Rename Line total as Cost of Goods Sold
+          df_transactions = df_transactions.rename(columns={df_transactions.columns[10]: 'COGS'})
+
+          # Rename the IDs column to remove whitespaces
+          df_transactions = df_transactions.rename(columns={df_transactions.columns[0]: 'InvoiceID'})
+          df_transactions = df_transactions.rename(columns={df_transactions.columns[2]: 'CustomerID'})
+          df_transactions = df_transactions.rename(columns={df_transactions.columns[3]: 'ProductID'})
+          df_transactions = df_transactions.rename(columns={df_transactions.columns[11]: 'StoreID'})
+          df_transactions = df_transactions.rename(columns={df_transactions.columns[12]: 'EmployeeID'})
+
+          # Drop unwanted columns
+          df_transactions = df_transactions.drop(columns=['SKU', 'Color', 'Line', 'Currency Symbol', 'Invoice Total'])
+
+          # Making all Size annotations uniform
+          df_transactions['Size'] = df_transactions['Size'].replace(
+                  {'G':'L', '38':'S', 'P':'S', '36':'S', '44':'XL', '40':'M',
+                '42':'L', '46':'XXL', '48':'XXXL', 'GG':'XL'
+                  })
+
+           # Fill missing values in Size as "Not Applicable"       
+          df_transactions['Size'] = df_transactions['Size'].fillna('Not Applicable')
+
+          # Some of the COGS are in CNY, EUR, GBP, we need to convert them to USD(uniformity)
+
+          # Set exchange rate for yuan, pounds, and euro
+          exchange_rates = {
+              "USD": 1,
+              "CNY": 0.14,  
+              "EUR": 1.08, 
+              "GBP": 1.26}
+
+          # Convert COGS to USD using vectorized `map()`
+          df_transactions["COGS_usd"] = df_transactions["COGS"] * df_transactions["Currency"].map(exchange_rates)
+
+          # Round the 'COGS_usd' column to 2 decimal places to avoid trailing zeros
+          df_transactions["COGS_usd"] = df_transactions["COGS_usd"].round(2)
+
+           # Save the transformed data
+          df_transactions.to_csv('transactions_tf_data.csv', index=False)
+
+
+
+      - id: transactions_to_bigQuery
+        type: io.kestra.plugin.gcp.bigquery.Load
+        from: "{{ outputs.transactions_transform_script.outputFiles['transactions_tf_data.csv'] }}"
+        destinationTable: "{{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}"
+        format: CSV
+        csvOptions:
+          fieldDelimiter: ","
+        autodetect: true
+
+      - id: partition_and_cluster_transactions
+        type: io.kestra.plugin.gcp.bigquery.Query
+        sql: |
+          CREATE OR REPLACE TABLE `{{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}_partitioned`
+          PARTITION BY DATE(Date)
+          CLUSTER BY CustomerID, StoreID
+          AS
+          SELECT * FROM `{{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}`;
+
+      - id: clean_up_raw_table
+        type: io.kestra.plugin.gcp.bigquery.Query
+        sql: |
+          DROP TABLE `{{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}`;
+        
+  - id: purge_files
+    type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
+    description: If you'd like to explore Kestra outputs, disable it.
+    disabled: false
+
+  
+ 
