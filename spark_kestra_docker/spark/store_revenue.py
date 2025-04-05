@@ -1,23 +1,29 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import argparse
+
 import pyspark
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 
+parser = argparse.ArgumentParser()
 
-credentials_location = '/opt/keys/gcp-creds.json'
+parser.add_argument('--inputs', required=True)
+parser.add_argument('--output', required=True)
+
+args = parser.parse_args()
+
+inputs = args.inputs
+output = args.output
+
 
 spark = SparkSession.builder \
-    .appName("BigQueryAccess") \
-    .config("spark.jars", "/opt/spark/jars/spark-bigquery-with-dependencies_2.12-0.30.0.jar,/opt/spark/jars/gcs-connector-hadoop3-latest.jar")\
-    .config("spark.hadoop.google.cloud.auth.service.account.enable", "true") \
-    .config("spark.hadoop.google.cloud.auth.service.account.json.keyfile", credentials_location) \
+    .appName('test') \
     .getOrCreate()
 
-
-# spark.conf.set('temporaryGcsBucket', 'olalekan-de2753')
+spark.conf.set('temporaryGcsBucket', 'olalekan-de2753')
 
 
 # Read from BigQuery
@@ -37,12 +43,12 @@ agg_prod_df = df_transact.groupBy("StoreID").agg(
 # Load in the store table from BigQuery
 df_store = spark.read \
     .format("bigquery") \
-    .option("table", "my-de-journey.Fashion_retail_dataset.stores") \
+    .option("table", inputs) \
     .load()
 
 
 
-# Perform an inner join with the store table on column ProductID
+# Perform an inner join with the store table on column StoreID
 store_rev_df = agg_prod_df.join(df_store, on="StoreID", how="inner")
 
 
@@ -50,12 +56,7 @@ store_rev_df = agg_prod_df.join(df_store, on="StoreID", how="inner")
 store_rev_df = store_rev_df.withColumnRenamed("Number of Employees", "Employee_Count")
 
 
-# Upload to BigQuery as Store_Revenue
-store_rev_df.write \
-    .format("bigquery") \
-    .option("temporaryGcsBucket", "olalekan-de2753") \
-    .option("writeMethod", "direct") \
-    .option("createDisposition", "CREATE_IF_NEEDED") \
-    .option("writeDisposition", "WRITE_TRUNCATE") \
-    .mode("overwrite") \
-    .save('my-de-journey.Fashion_retail_dataset.Store_Revenue')
+# Upload to BigQuery as store_revenue
+store_rev_df.write.format('bigquery') \
+    .option('table', output) \
+    .save()

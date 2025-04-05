@@ -1,0 +1,26 @@
+id: revenue
+namespace: project_fashion
+
+inputs:
+  - id: revenue_type
+    type: SELECT
+    displayName: Select Revenue type
+    values: [customers, products, stores, employees]
+    defaults: customers
+
+tasks:
+  - id: submit_job
+    type: io.kestra.plugin.gcp.dataproc.batches.PySparkSubmit
+    peripherals:
+      sparkHistoryServer:
+        dataprocCluster: "revenue-job" # Already created cluster name
+    projectId: 'my-de-journey'
+    mainPythonFileUri: "gs://{{ kv('GCP_BUCKET_NAME') }}/script/spark/[{{inputs.revenue_type}} ~ '_revenue.py']"
+    name: "rev-job"
+    region: "africa-south1"
+    args:
+      - "--inputs=my-de-journey.Fashion_retail_dataset.{{inputs.revenue_type}}"
+      - "--output=my-de-journey.Fashion_retail_dataset.{{inputs.revenue_type}}_revenue"
+  
+
+    

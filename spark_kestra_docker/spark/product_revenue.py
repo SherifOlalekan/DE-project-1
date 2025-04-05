@@ -1,24 +1,29 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import argparse
+
 import pyspark
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 
+parser = argparse.ArgumentParser()
 
-credentials_location = '/home/olalekan/data_Engineering_Journey/02_workflow_orchestration/keys/credk.json'
+parser.add_argument('--inputs', required=True)
+parser.add_argument('--output', required=True)
+
+args = parser.parse_args()
+
+inputs = args.inputs
+output = args.output
+
 
 spark = SparkSession.builder \
-    .appName("BigQueryAccess") \
-    .config("spark.jars", "/home/olalekan/data_Engineering_Journey/05_batch_processing/code/lib/gcs-connector-hadoop3-latest.jar,/home/olalekan/DE-project-1/spark_kestra_docker/jars/spark-bigquery-with-dependencies_2.12-0.30.0.jar") \
-    .config("spark.hadoop.google.cloud.auth.service.account.enable", "true") \
-    .config("spark.hadoop.google.cloud.auth.service.account.json.keyfile", credentials_location) \
+    .appName('test') \
     .getOrCreate()
 
-
-# spark.conf.set('temporaryGcsBucket', 'olalekan-de2753')
-
+spark.conf.set('temporaryGcsBucket', 'olalekan-de2753')
 
 # Read from BigQuery
 df_transact = spark.read \
@@ -37,7 +42,7 @@ agg_prod_df = df_transact.groupBy("ProductID").agg(
 # Load in the product table from BigQuery
 df_product = spark.read \
     .format("bigquery") \
-    .option("table", "my-de-journey.Fashion_retail_dataset.products") \
+    .option("table", inputs) \
     .load()
 
 
@@ -51,11 +56,6 @@ product_rev_df = product_rev_df.withColumnRenamed("Description EN", "Description
 product_rev_df = product_rev_df.withColumnRenamed("Production Cost", "Production_cost")
 
 # Upload to BigQuery as Product_Revenue
-product_rev_df.write \
-    .format("bigquery") \
-    .option("temporaryGcsBucket", "olalekan-de2753") \
-    .option("writeMethod", "direct") \
-    .option("createDisposition", "CREATE_IF_NEEDED") \
-    .option("writeDisposition", "WRITE_TRUNCATE") \
-    .mode("overwrite") \
-    .save('my-de-journey.Fashion_retail_dataset.Product_Revenue')
+product_rev_df.write.format('bigquery') \
+    .option('table', output) \
+    .save()
