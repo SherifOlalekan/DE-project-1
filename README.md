@@ -87,7 +87,6 @@ Built an interactive dashboard to analyze key sales performance metrics:
 - **Total Sales Quantity**
 - **Total Revenue**
 - **Return Rate**
-- **Revenue by Store, Product, Customer, Employee**
 - **Top Selling Products**
 - **Monthly Revenue Trends**
 
