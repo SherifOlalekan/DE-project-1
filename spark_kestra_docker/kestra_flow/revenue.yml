@@ -23,4 +23,42 @@ tasks:
       - "--output=my-de-journey.Fashion_retail_dataset.{{inputs.revenue_type}}_revenue"
   
 
+  - id: purge_files
+    type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
+    disabled: false
     
+  pluginDefaults:
+    - type: io.kestra.plugin.gcp
+      values:
+        serviceAccount: "{{kv('jsonkey')}}"
+        projectId: "{{kv('GCP_PROJECT_ID')}}"
+        location: "{{kv('GCP_LOCATION')}}"
+        bucket: "{{kv('GCP_BUCKET_NAME')}}"
+        
+   # Triggers that run on the 2nd of every month     
+  triggers:
+  - id: customers_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 7 2 * *"
+    inputs:
+      fashion: customers
+
+  - id: products_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 8 2 * *"
+    inputs:
+      fashion: products
+      
+ - id: stores_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 9 2 * *"
+    inputs:
+      fashion: stores
+      
+- id: employees_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 10 2 * *"
+
+- id: transactions_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 11 2 * *"
