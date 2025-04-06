@@ -18,3 +18,10 @@ Moving scripts to gcs
 ```
 gsutil -m cp -r spark/ gs://olalekan-de2753/script/
 ```
+ALTER TABLE `my-de-journey.Fashion_retail_dataset.Product_Revenue` 
+  ADD COLUMN Profit FLOAT64;
+
+UPDATE 
+  `my-de-journey.Fashion_retail_dataset.Product_Revenue`
+SET Profit = (total_COGS - (total_sales * Production_cost))
+WHERE total_COGS IS NOT NULL;
