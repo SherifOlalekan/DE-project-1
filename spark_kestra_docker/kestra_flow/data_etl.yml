@@ -337,6 +337,42 @@ tasks:
     type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
     description: If you'd like to explore Kestra outputs, disable it.
     disabled: false
+    
+  pluginDefaults:
+    - type: io.kestra.plugin.gcp
+      values:
+        serviceAccount: "{{kv('jsonkey')}}"
+        projectId: "{{kv('GCP_PROJECT_ID')}}"
+        location: "{{kv('GCP_LOCATION')}}"
+        bucket: "{{kv('GCP_BUCKET_NAME')}}"
+        
+  triggers:
+  - id: customers_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 7 1 * *"
+    inputs:
+      fashion: customers
 
-  
- 
+  - id: products_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 8 1 * *"
+    inputs:
+      fashion: products
+      
+ - id: stores_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 9 1 * *"
+    inputs:
+      fashion: stores
+      
+- id: employees_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 10 1 * *"
+    inputs:
+      fashion: employees
+
+- id: transactions_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 11 1 * *"
+    inputs:
+      fashion: transactions
