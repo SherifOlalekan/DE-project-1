@@ -6,6 +6,8 @@
 
 This project is an end-to-end **Data Engineering and Analytics Pipeline** built around the *Global Fashion Retail Sales* dataset from Kaggle. It demonstrates how to collect, clean, transform, and visualize retail data using a modern cloud-native data stack.
 
+
+
 ---
 
 ### 🧰 Tech Stack
@@ -17,7 +19,6 @@ This project is an end-to-end **Data Engineering and Analytics Pipeline** built 
 - **Kestra** – Workflow orchestration and scheduling
 - **Looker Studio** – Dashboard creation and KPI visualization
 - **Pandas** – Data inspection and cleaning (initially)
-- **Parquet** – Format for efficient storage & querying
 
 ---
 
@@ -40,33 +41,40 @@ This project is an end-to-end **Data Engineering and Analytics Pipeline** built 
 #### 1. **Data Extraction & Upload**
 
 - Downloaded the dataset from Kaggle
-- Extracted the relevant CSV files
+- Extracted the relevant CSV files 👉 [extraction](https://github.com/SherifOlalekan/DE-project-1/blob/main/extraction.ipynb)
 - Uploaded the raw files to **Google Cloud Storage (GCS)**
+```bash
+gsutil -m cp -r dataset/ gs://olalekan-de2753/dataset
+```
 
 #### 2. **Infrastructure Setup**
 
 - Used **Terraform** to:
   - Create a GCS bucket
-  - Provision a BigQuery dataset
+  - Provision a BigQuery dataset 👉 [terraform](https://github.com/SherifOlalekan/DE-project-1/tree/main/terraform_gcp)
 
-#### 3. **Data Processing with Spark**
+#### 3. **Containerization and Workflow Orchestration**
 
-- Read CSV files from GCS
-- Cleaned and joined the datasets in **Apache Spark**
-- Transformed the data into revenue summary tables:
+-  Created a [docker-compose.yaml file](https://github.com/SherifOlalekan/DE-project-1/blob/main/spark_kestra_docker/docker-compose.yml) for Kestra and Spark (master and worker)
+- Created **Kestra flows** to automate:
+  - Ingest data from GCS, clean and upload to BigQuery 👉 [flows](https://github.com/SherifOlalekan/DE-project-1/tree/main/spark_kestra_docker/kestra_flow/data_etl.yml)
+  - Spark-based transformation 👉 [pyspark scrips](https://github.com/SherifOlalekan/DE-project-1/tree/main/spark_kestra_docker/spark)
+  - BigQuery load jobs
+
+#### 4. **Data Processing**
+
+- Read CSV files from GCS and clean with **pandas**
+- Uploaded the cleaned datasets to BigQuery for Storage
+- Performed transformation with **pyspark**, A Python API for Spark
+- Transformed the data into revenue summary tables: 👉[revenue yaml file](https://github.com/SherifOlalekan/DE-project-1/blob/main/spark_kestra_docker/kestra_flow/revenue.yml)
   - `customer_revenue`
   - `store_revenue`
   - `employee_revenue`
   - `product_revenue`
-- Output format: **Parquet**
-- Loaded the final datasets into **BigQuery**
-
-#### 4. **Workflow Orchestration**
-
-- Created **Kestra flows** to automate:
-  - Data extraction and upload
-  - Spark-based transformation
-  - BigQuery load jobs
+- Loaded the final datasets into **BigQuery** with **Kestra** PySparkSubmit.
+- I was also able to use the trigger function in Kestra to automate the orchestration process where:
+  - The data ingest task was schedule to run on the 1st of every month at 1hr interval for the 5 datasets
+  - The revenue transformation task was schdeule to run on the 2nd of every month
 
 ---
 
@@ -87,17 +95,6 @@ Built an interactive dashboard to analyze key sales performance metrics:
 
 ---
 
-### 📁 Folder Structure
-
-```
-├── data/                  # Raw and cleaned data files
-├── dags/                  # Kestra workflows
-├── terraform/             # GCP infra setup
-├── notebooks/             # Data inspection & Spark scripts
-├── docker/                # Docker Compose & container configs
-└── README.md              # This file
-```
-
 ---
 
 ### 🚀 How to Run
@@ -116,35 +113,13 @@ This project showcases a full-stack data engineering pipeline using cloud-native
 
 
 
-
-
-
-
-
-
-
-Uploading the dataset to Google Cloud Bucket
-```bash
-gsutil -m cp -r dataset/ gs://olalekan-de2753/dataset
-```
-code to download the Spark-bigQuery connector jar file
-
+### ❗ Note:
+Here is the [data cleaning](https://github.com/SherifOlalekan/DE-project-1/blob/main/dataset_cleaning.ipynb) and 
+[Spark BiqQuery](https://github.com/SherifOlalekan/DE-project-1/blob/main/spark_kestra_docker/spark/spark_bigquery.ipynb) jupyter notebook for use outside Kestra.
+Download the Spark-bigQuery connector jar file to the .jar folder
 ```
 mkdir -p ./jars
 curl -L -o ./jars/spark-bigquery-with-dependencies_2.12-0.30.0.jar \
 https://repo1.maven.org/maven2/com/google/cloud/spark/spark-bigquery-with-dependencies_2.12/0.30.0/spark-bigquery-with-dependencies_2.12-0.30.0.jar
 
 ```
-
-Moving scripts to gcs
-
-```
-gsutil -m cp -r spark/ gs://olalekan-de2753/script/
-```
-ALTER TABLE `my-de-journey.Fashion_retail_dataset.Product_Revenue` 
-  ADD COLUMN Profit FLOAT64;
-
-UPDATE 
-  `my-de-journey.Fashion_retail_dataset.Product_Revenue`
-SET Profit = (total_COGS - (total_sales * Production_cost))
-WHERE total_COGS IS NOT NULL;
