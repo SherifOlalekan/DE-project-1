@@ -105,6 +105,9 @@ Built an interactive dashboard to analyze key sales performance metrics:
 4. Trigger Kestra flows to process and load data
 5. Connect Looker Studio to your BigQuery dataset
 
+![Fashion dashboard](https://github.com/user-attachments/assets/3db2ac95-2e07-41d3-8bc4-b03aef40558f)
+
+
 ---
 
 ### 📌 Conclusion
